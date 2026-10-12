@@ -1,0 +1,16 @@
+{
+  "name": "workforce",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Gestion de projets IT et d'équipes transverses, pilotée en langage naturel (chat + voix).",
+  "scripts": {
+    "start": "node server/start.js",
+    "dev": "node --watch server/start.js",
+    "test": "node --test test/*.test.js",
+    "llm:check": "node scripts/llm-check.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

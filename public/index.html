@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkForce</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M8 11h16M8 16h10M8 21h13' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="logo"></span>WorkForce</div>
+    <nav id="nav"></nav>
+    <button id="new-task" class="primary" title="Nouvelle tâche (touche N)">＋ Tâche</button>
+    <div class="spacer"></div>
+    <button id="ai-badge" class="badge" title="Configurer le LLM"></button>
+    <button id="bell" class="bell" aria-label="Notifications" aria-haspopup="true">🔔<span id="bell-n" class="bell-n" hidden></span></button>
+    <label class="who">Connecté en tant que <select id="user" aria-label="Utilisateur courant"></select></label>
+    <span id="whoami" class="whoami" hidden></span><button id="logout" class="ghost" hidden>Déconnexion</button>
+    <button id="chat-toggle" class="chat-toggle" aria-label="Ouvrir l’assistant">💬</button>
+  </header>
+  <main>
+    <section id="view"></section>
+    <aside id="chat" aria-label="Assistant">
+      <div class="chat-head"><strong>Assistant</strong><span class="hint">Ctrl+K pour parler ou écrire</span>
+        <button id="chat-close" class="icon chat-close" aria-label="Fermer l’assistant">✕</button><button id="speak" class="icon" title="Lire les réponses à voix haute" aria-pressed="false">🔈</button></div>
+      <div id="log" class="log"></div>
+      <div id="chips" class="chips"></div>
+      <form id="form">
+        <textarea id="input" rows="1" placeholder="Ex : il faut migrer la base de prod, urgent, assigne à Léa…"></textarea>
+        <button type="button" id="mic" class="icon mic" title="Dicter (voix)">🎙️</button>
+        <button type="submit" class="primary">Envoyer</button>
+      </form>
+    </aside>
+  </main>
+  <div id="drawer" class="drawer" hidden></div>
+  <div id="modal" class="drawer center" hidden></div>
+  <div id="notif" class="notif" hidden></div>
+  <div id="login" class="login" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+</div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
