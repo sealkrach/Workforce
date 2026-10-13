@@ -1,7 +1,7 @@
 // Organisation : squads (3–5 personnes + lead), features, garde-fous, carte des dépendances.
 // Module autonome : reçoit ses dépendances (état, helpers) de app.js, sans import circulaire.
 export function createOrg(c) {
-  const { h, S, api, toast, by, member, team, project, avatar, openTask, openModal, closeModal, makeDraggable, DRAG, fmtDate, can } = c;
+  const { h, S, api, toast, by, member, team, project, avatar, openTask, openModal, closeModal, makeDraggable, DRAG, fmtDate, can, uc } = c;
   const FSTATUS = { discovery: 'Cadrage', building: 'Réalisation', shipping: 'Livraison', live: 'En ligne' };
   const HEALTH_FR = { green: 'Tout va bien', orange: 'À surveiller', red: 'En difficulté' };
   const squadOf = id => S.data.squads.find(s => s.id === id);
@@ -68,6 +68,7 @@ export function createOrg(c) {
         f.target_date && h('span', { class: `due ${lateDate ? 'late' : ''}` }, '🎯 ' + fmtDate(f.target_date)),
         f.project_id && h('span', { class: 'chip' }, project(f.project_id).key),
         f.blocked > 0 && h('span', { class: 'lock' }, `🔒 ${f.blocked}`), f.overdue > 0 && h('span', { class: 'due late' }, `⏰ ${f.overdue}`)),
+      f.uc_refs?.length > 0 && h('div', { class: 'needs' }, h('span', { class: 'muted' }, 'Use cases '), f.uc_refs.map(r => uc.chip(r))),
       f.reasons.length > 0 && h('ul', { class: `reasons ${f.health}` }, f.reasons.map(r => h('li', {}, r))),
       needs.length > 0 && h('div', { class: 'needs' }, h('span', { class: 'muted' }, 'Dépend de '), needs.map(({ p }) =>
         h('span', { class: `chip ${p.status !== 'live' && p.squad_id !== f.squad_id ? 'warn' : ''}`, title: `${squadOf(p.squad_id).name} · ${FSTATUS[p.status]}` }, p.name, p.squad_id !== f.squad_id ? ` · ${squadOf(p.squad_id).name}` : ''))),
@@ -106,12 +107,12 @@ export function createOrg(c) {
 
   function featuresView() {
     const sel = curSquad(), squads = S.data.squads.filter(s => !sel || String(s.id) === sel);
-    const guards = S.data.guardrails.filter(g => !sel || g.squad_id === +sel || g.squads?.includes(+sel) || (g.kind === 'inbox' && g.squad_id == null));
+    const guards = S.data.guardrails.filter(g => !sel || g.squad_id === +sel || g.squads?.includes(+sel) || (g.kind === 'inbox' && g.squad_id == null) || g.kind === 'uc_unplanned');
     const bar = h('div', { class: 'toolbar' },
       h('select', { onchange: e => { S.f.squad = e.target.value; c.render(); } }, h('option', { value: '' }, 'Toutes les squads'), S.data.squads.map(s => h('option', { value: s.id, selected: String(s.id) === sel }, s.name))),
       h('span', { class: 'grow' }), can.anyLead && h('button', { class: 'primary', onclick: () => openFeatureModal(null) }, '＋ Nouvelle feature'));
     if (!S.data.squads.length) return h('div', {}, bar, h('div', { class: 'panel empty' }, 'Aucune squad pour le moment. ', h('a', { class: 'flink', onclick: () => openSquadModal(null) }, 'Créez la première')));
-    return h('div', {}, bar, banner(guards), squads.map(sq => inboxPanel(sq.id)), can.anyLead && inboxPanel(null),   // « sans squad destinataire » : visible des leads et administrateurs, quelle que soit la squad affichée
+    return h('div', {}, bar, uc.banner(), banner(guards), uc.plannerPanel(), squads.map(sq => inboxPanel(sq.id)), can.anyLead && inboxPanel(null),   // « sans squad destinataire » : visible des leads et administrateurs, quelle que soit la squad affichée
       squads.map(sq => {
         const feats = S.data.features.filter(f => f.squad_id === sq.id).sort((a, b) => (a.status === 'live') - (b.status === 'live') || ['red', 'orange', 'green'].indexOf(a.health) - ['red', 'orange', 'green'].indexOf(b.health));
         return h('section', { class: 'squadsec' }, squadHeader(sq),
@@ -211,6 +212,7 @@ export function createOrg(c) {
         h('input', { type: 'text', placeholder: 'Raison (facultatif)', style: 'flex:1;min-width:120px', oninput: e => newNote = e.target.value }),
         h('button', { onclick: async () => { if (!newDep) return; try { await api('/feature-deps', 'POST', { from_feature_id: f.id, to_feature_id: +newDep, note: newNote }); openFeatureModal(id, v); } catch (e) { err.textContent = e.message; err.hidden = false; } } }, 'Ajouter')),
       f && needed.length > 0 && h('div', { class: 'muted', style: 'margin-top:8px' }, 'Attendue par : ', needed.map(d => featureOf(d.from_feature_id).name).join(', ')),
+      ...(f ? uc.featureSection(f, () => openFeatureModal(id, v)) : []),
       err, h('div', { class: 'actions' }, delBtn, h('span', { class: 'spacer' }), h('button', { onclick: closeModal }, 'Annuler'), save)));
   }
 

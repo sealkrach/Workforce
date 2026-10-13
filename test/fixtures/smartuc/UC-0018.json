@@ -1,0 +1,99 @@
+{
+ "id": "62bf88b328f04a079b6c6db5abfb44c9",
+ "ref": "UC-0018",
+ "title": "Enterprise knowledge assistant (internal search)",
+ "summary": "A company-wide assistant that answers employee questions from approved internal documentation across SharePoint, Confluence and the intranet, with citations.",
+ "status": "approved",
+ "business_unit": "Group IT - Workplace",
+ "completeness": 0.791,
+ "value_score": 86.4,
+ "feasibility_score": 60.7,
+ "priority_score": 76.1,
+ "risk_tier": "minimal_risk",
+ "tags": [],
+ "source": "manual",
+ "owner": {
+  "id": "3d40fedaf35640dca8e39a8ab52f513b",
+  "email": "karim.benali@example.com",
+  "full_name": "Karim Benali",
+  "role": "requester",
+  "is_active": true
+ },
+ "ai_capability": "search_rag",
+ "suggested_relations": 0,
+ "updated_at": "2026-10-13T03:48:24.780193",
+ "created_at": "2026-10-13T03:48:24.485368",
+ "template_id": "1aab595015a6459b90463d0c44992d89",
+ "fields": {
+  "title": "Enterprise knowledge assistant (internal search)",
+  "summary": "A company-wide assistant that answers employee questions from approved internal documentation across SharePoint, Confluence and the intranet, with citations.",
+  "business_unit": "Group IT - Workplace",
+  "problem_statement": "Employees spend 1.8 hours a day searching for information across 12 repositories; answers are outdated or contradictory.",
+  "target_users": [
+   "All employees (25,000)"
+  ],
+  "ai_capability": "search_rag",
+  "human_in_the_loop": "none",
+  "interaction_mode": "chat",
+  "solution_description": "Permission-aware RAG platform with connectors to SharePoint, Confluence and the intranet; exposed in Teams and as an API for domain assistants (HR, IT, compliance).",
+  "data_sources": [
+   "SharePoint",
+   "Confluence",
+   "Intranet pages"
+  ],
+  "data_sensitivity": "internal",
+  "source_systems": [
+   "SharePoint",
+   "Confluence"
+  ],
+  "target_systems": [
+   "Microsoft Teams"
+  ],
+  "value_drivers": [
+   "employee_experience",
+   "cost_reduction",
+   "quality"
+  ],
+  "kpis": [
+   "Search time -30%",
+   "Weekly active users 40%"
+  ],
+  "estimated_annual_value": 5000000,
+  "affected_population": 25000,
+  "urgency": "high",
+  "data_readiness": 3,
+  "technical_complexity": 3,
+  "change_impact": 2,
+  "eu_ai_act_tier": "minimal_risk",
+  "risk_categories": [
+   "hallucination_accuracy",
+   "security"
+  ],
+  "build_approach": "build",
+  "estimated_effort": "XL",
+  "teams_involved": [
+   "Data & AI platform",
+   "Workplace IT"
+  ],
+  "models_considered": [
+   "Claude",
+   "Azure OpenAI GPT-4o",
+   "internal LangGraph platform"
+  ]
+ },
+ "missing_required": [],
+ "ai_suggestions": {},
+ "last_analyzed_at": "2026-10-13T03:48:24.779988",
+ "allowed_transitions": [
+  {
+   "to": "in_build",
+   "gate": null,
+   "min_role": "reviewer"
+  },
+  {
+   "to": "rejected",
+   "gate": null,
+   "min_role": "admin"
+  }
+ ]
+}

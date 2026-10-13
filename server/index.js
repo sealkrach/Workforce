@@ -18,6 +18,7 @@ const actions = await import('./actions.js');
 const org = await import('./squads.js');
 const admin = await import('./admin.js');
 const { createAuth, authConfig } = await import('./auth.js');
+const { createSmartuc } = await import('./smartuc.js');
 const { notificationsFor, markRead, notify, adminIds } = await import('./notify.js');
 const { llmConfig, publicConfig, setLlmSettings, testConnection, ping, transcribe } = await import('./llm.js');
 const { HttpError } = await import('./util.js');
@@ -33,9 +34,10 @@ export const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
  *  - allowedHosts : noms d'hôte supplémentaires autorisés (ALLOWED_HOSTS), p. ex. l'adresse publique du reverse proxy
  *  - trustProxy   : faire confiance à X-Forwarded-Host (TRUST_PROXY=1) quand un reverse proxy réécrit l'en-tête Host
  */
-export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustProxy = false, auth: authCfg = authConfig({}) } = {}) {   // authentification DÉSACTIVÉE par défaut : seul start.js lit l'environnement
+export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustProxy = false, auth: authCfg = authConfig({}), smartuc: uc = null } = {}) {   // authentification DÉSACTIVÉE par défaut : seul start.js lit l'environnement
   const allowed = new Set(allowedHosts.map(h => h.toLowerCase()));
   const authn = createAuth(db, authCfg);
+  const smartuc = uc || createSmartuc(db, { env: {} });   // par défaut : réglages enregistrés en base uniquement (start.js injecte l'instance configurée par l'environnement)
   setLlmSettings(loadSetting(db, 'llm') || {});
   const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
   const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -73,9 +75,11 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
   const needAdmin = actor => { if (!actor.is_admin) forbid('Action réservée aux administrateurs.'); };
   /** Droit de gérer une squad : administrateur, ou lead de cette squad (sans authentification, tout le monde). */
   const isLeadOf = (actor, squadId) => !authn.enabled || actor.is_admin || (squadId && db.prepare('SELECT 1 FROM squads WHERE id = ? AND lead_id = ?').get(squadId, actor.id));
+  const isAnyLead = actor => !authn.enabled || actor.is_admin || !!db.prepare('SELECT 1 FROM squads WHERE lead_id = ?').get(actor.id);
   const needLead = (actor, squadId, what = 'cette squad') => { if (!isLeadOf(actor, squadId)) forbid(`Réservé au lead de ${what} ou à un administrateur.`); };
 
   const snapshot = (actor = { id: null }) => ({
+    _snapshot: true,   // marqueur explicite : le navigateur ne fusionne QUE les réponses qui le portent
     teams: db.prepare('SELECT * FROM teams').all(),
     members: db.prepare('SELECT * FROM members').all().map(m => ({ ...m, skills: JSON.parse(m.skills || '[]') })),
     projects: db.prepare('SELECT * FROM projects').all(),
@@ -87,6 +91,7 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
     empty: admin.isEmpty(db),
     auth: { enabled: authn.enabled, providers: authn.providers, user: actor.id ? { id: actor.id, name: actor.name, is_admin: actor.is_admin } : null },
     notifications: notificationsFor(db, actor.id),
+    ...smartuc.snapshot(),
     ...org.orgSnapshot(db),
   });
 
@@ -134,6 +139,7 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
 
   const route = async (req, res, p) => {
     const method = req.method, mutating = method !== 'GET' && method !== 'HEAD';
+    let m0;
     guard(req, mutating);
     const actor = actorOf(req);
     const A = actor.name;
@@ -148,6 +154,8 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
       return json(res, rows.map(r => ({ ...r, before: undefined, after: r.after && JSON.parse(r.after) })));
     }
     if (method === 'GET' && p === '/api/export') { needAdmin(actor); return json(res, admin.exportAll(db), 200, { 'Content-Disposition': `attachment; filename="workforce-export-${new Date().toISOString().slice(0, 10)}.json"` }); }
+    if (method === 'GET' && p === '/api/smartuc') return json(res, smartuc.publicConfig());
+    if (method === 'GET' && (m0 = p.match(/^\/api\/ucs\/([\w-]+)\/plan$/))) { if (!isAnyLead(actor)) forbid('Réservé aux leads et aux administrateurs.'); return json(res, smartuc.plan(m0[1])); }
     if (method === 'GET' && p === '/api/llm') return json(res, publicConfig());
     if (method === 'GET' && p === '/api/llm/ping') return json(res, llmConfig().enabled ? await ping() : { mode: 'mock' });
     if (!mutating) return json(res, { error: 'Route inconnue' }, 404);
@@ -206,6 +214,17 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
         org.updateMember(db, m[1], data, A); return json(res, snapshot(actor));
       }
       if (method === 'DELETE') { needAdmin(actor); admin.deleteMember(db, m[1], A); return json(res, snapshot(actor)); }
+    }
+    if (method === 'POST' && p === '/api/smartuc') { needAdmin(actor); return json(res, smartuc.save(data)); }
+    if (method === 'POST' && p === '/api/smartuc/test') { needAdmin(actor); return json(res, await smartuc.test(data)); }
+    if (method === 'POST' && p === '/api/smartuc/sync') { if (!isAnyLead(actor)) forbid('Réservé aux leads et aux administrateurs.'); const r = await smartuc.sync({ manual: true }); return json(res, { sync: r, ...snapshot(actor) }); }
+    if (method === 'POST' && (m = p.match(/^\/api\/ucs\/([\w-]+)\/ignore$/))) { if (!isAnyLead(actor)) forbid('Réservé aux leads et aux administrateurs.'); smartuc.ignore(m[1], data.on !== false); return json(res, snapshot(actor)); }
+    if (method === 'POST' && (m = p.match(/^\/api\/ucs\/([\w-]+)\/create-feature$/))) { needLead(actor, +data.squad_id); const r = smartuc.createFeatureFromUc(m[1], data, A); return json(res, { ...r, ...snapshot(actor) }); }
+    if ((m = p.match(/^\/api\/features\/(\d+)\/ucs(?:\/([\w-]+))?$/))) {
+      const f = row('SELECT squad_id FROM features WHERE id = ?', +m[1]);
+      if (f) needLead(actor, f.squad_id, 'la squad propriétaire de cette feature');
+      if (method === 'POST') { smartuc.link(m[1], data.uc_ref, A); return json(res, snapshot(actor)); }
+      if (method === 'DELETE' && m[2]) { smartuc.unlink(m[1], m[2], A); return json(res, snapshot(actor)); }
     }
     if (method === 'POST' && p === '/api/features') { needLead(actor, +data.squad_id); const id = org.createFeature(db, data, A); return json(res, { id, ...snapshot(actor) }); }
     if ((m = p.match(/^\/api\/features\/(\d+)$/))) {

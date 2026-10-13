@@ -8,7 +8,8 @@
     "start": "node server/start.js",
     "dev": "node --watch server/start.js",
     "test": "node --test test/*.test.js",
-    "llm:check": "node scripts/llm-check.mjs"
+    "llm:check": "node scripts/llm-check.mjs",
+    "smartuc:check": "node scripts/smartuc-check.mjs"
   },
   "engines": {
     "node": ">=24"

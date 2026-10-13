@@ -1,0 +1,103 @@
+{
+ "id": "f6d738afe0e64bf98bae86f2224e214b",
+ "ref": "UC-0025",
+ "title": "Internal AI platform: LLM gateway and agent runtime",
+ "summary": "A shared platform providing a governed LLM gateway (multi-provider), RAG building blocks, agent runtime (LangGraph), evaluation and observability for all AI use cases.",
+ "status": "qualified",
+ "business_unit": "Group IT - Data & AI Platform",
+ "completeness": 0.761,
+ "value_score": 80.3,
+ "feasibility_score": 60.7,
+ "priority_score": 72.5,
+ "risk_tier": "gpai_obligations_only",
+ "tags": [],
+ "source": "manual",
+ "owner": {
+  "id": "3d40fedaf35640dca8e39a8ab52f513b",
+  "email": "karim.benali@example.com",
+  "full_name": "Karim Benali",
+  "role": "requester",
+  "is_active": true
+ },
+ "ai_capability": "agentic_workflow",
+ "suggested_relations": 0,
+ "updated_at": "2026-10-13T03:48:24.808282",
+ "created_at": "2026-10-13T03:48:24.493251",
+ "template_id": "1aab595015a6459b90463d0c44992d89",
+ "fields": {
+  "title": "Internal AI platform: LLM gateway and agent runtime",
+  "summary": "A shared platform providing a governed LLM gateway (multi-provider), RAG building blocks, agent runtime (LangGraph), evaluation and observability for all AI use cases.",
+  "business_unit": "Group IT - Data & AI Platform",
+  "problem_statement": "Each team integrates LLM providers independently, duplicating security reviews, cost controls, evaluation tooling and monitoring.",
+  "target_users": [
+   "AI engineering teams (12 teams)",
+   "Model risk management (8)"
+  ],
+  "ai_capability": "agentic_workflow",
+  "human_in_the_loop": "none",
+  "interaction_mode": "api",
+  "solution_description": "Central gateway with provider abstraction, PII filtering, quota and cost tracking, prompt registry, evaluation harness and tracing. Domain assistants are deployed on this runtime.",
+  "data_sources": [
+   "Prompt and completion logs",
+   "Evaluation datasets"
+  ],
+  "data_sensitivity": "confidential",
+  "source_systems": [
+   "Azure OpenAI",
+   "Anthropic API",
+   "Internal Kubernetes platform"
+  ],
+  "target_systems": [
+   "Internal Kubernetes platform"
+  ],
+  "value_drivers": [
+   "cost_reduction",
+   "compliance",
+   "speed_time_to_market"
+  ],
+  "kpis": [
+   "Time to deploy a new assistant 3 months -> 3 weeks",
+   "LLM spend visibility 100%"
+  ],
+  "estimated_annual_value": 3000000,
+  "affected_population": 150,
+  "urgency": "critical",
+  "data_readiness": 4,
+  "technical_complexity": 4,
+  "change_impact": 3,
+  "eu_ai_act_tier": "gpai_obligations_only",
+  "build_approach": "build",
+  "estimated_effort": "XL",
+  "teams_involved": [
+   "Data & AI platform",
+   "Security",
+   "Model risk management"
+  ],
+  "models_considered": [
+   "Claude",
+   "Azure OpenAI GPT-4o",
+   "Mistral Large",
+   "internal LangGraph platform"
+  ]
+ },
+ "missing_required": [],
+ "ai_suggestions": {},
+ "last_analyzed_at": "2026-10-13T03:48:24.808089",
+ "allowed_transitions": [
+  {
+   "to": "approved",
+   "gate": "Investment gate: risk tier validated, dependencies known, sponsor committed.",
+   "min_role": "reviewer"
+  },
+  {
+   "to": "rejected",
+   "gate": null,
+   "min_role": "reviewer"
+  },
+  {
+   "to": "draft",
+   "gate": null,
+   "min_role": "reviewer"
+  }
+ ]
+}

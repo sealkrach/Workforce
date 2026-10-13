@@ -292,3 +292,21 @@ body.touch-dragging { user-select: none; -webkit-user-select: none; cursor: grab
   .notif { right: 8px; left: 8px; width: auto; }
   .whoami { display: none; }
 }
+
+/* ---------- Use cases SmartUC ---------- */
+.chip.uc { cursor: pointer; background: color-mix(in srgb, var(--brand) 10%, var(--panel2)); color: var(--text); white-space: nowrap; text-decoration: none; }
+.chip.uc.good { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); } .chip.uc.info { background: color-mix(in srgb, var(--info) 18%, transparent); color: var(--info); }
+.chip.uc.warn { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); } .chip.uc.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.ucchip { display: inline-flex; align-items: center; gap: 2px; } .ucchip .x { padding: 0 4px; font-size: 11px; min-height: 0; }
+.uplanner { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); margin-bottom: 18px; }
+.ucrow .ucname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ucfields { grid-template-columns: 120px 1fr; align-items: start; } .ucfields label { padding-top: 2px; } .ucval { overflow-wrap: anywhere; }
+.sechead-mini { display: flex; gap: 8px; align-items: center; font-weight: 650; font-size: 13px; margin: 14px 0 6px; }
+.rank { display: grid; gap: 5px; }
+.rankrow { display: flex; gap: 8px; align-items: center; text-align: left; width: 100%; flex-wrap: wrap; padding: 7px 10px; }
+.rankrow.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--panel)); } .rankrow:disabled { opacity: .55; cursor: not-allowed; }
+.rankrow .muted { font-size: 12px; }
+.plantasks { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px; }
+.plantask { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--line); cursor: pointer; } .plantask:last-child { border-bottom: 0; }
+.plantask input { margin-top: 4px; }
+.modal { max-height: 94vh; }

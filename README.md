@@ -5,7 +5,7 @@ Zéro dépendance : Node ≥ 24 suffit (`node:sqlite`, `fetch` natifs ; testé a
 
 ```bash
 npm start            # http://127.0.0.1:3000 — base vide au premier démarrage : l'interface guide la création de l'organisation
-npm test             # 44 tests (chat, annulation, OpenAI simulé, réglages LLM, squads & features, durcissement)
+npm test             # 68 tests (chat, annulation, OpenAI simulé, réglages LLM, squads & features, durcissement)
 ```
 
 ## Vérifier votre LLM
@@ -59,6 +59,17 @@ ADMIN_EMAILS=prenom.nom@entreprise.fr             # administrateurs
 - **Rôles** : *administrateur* (réglages, personnes, projets, fonctions, LLM, export, effacement, création/suppression de squads, changement de lead) ; *lead* (modifie **sa** squad, ses features, leurs dépendances, l'appartenance et le prêt de temps de ses membres) ; *membre* (tâches, chat, sa propre fiche). Sans fournisseur configuré, tout le monde est administrateur.
 - Sans `ADMIN_EMAILS` ni administrateur existant, le **premier compte autorisé** à se connecter devient administrateur : renseignez `ADMIN_EMAILS` en production.
 - Testé contre un faux fournisseur OIDC qui vérifie réellement PKCE et signe de vrais jetons, **pas contre une instance Keycloak ou Google réelle** : faites une première connexion de contrôle avant d'inviter l'équipe.
+
+## Use cases IA : lien avec SmartUC
+WorkForce se connecte à [SmartUC](https://github.com/sealkrach/SmartUC) (registre des use cases IA, gouvernance à portes) par **MCP**, en **lecture seule** : SmartUC reste la source de vérité des UC, WorkForce porte la livraison.
+- **Un use case ↔ une ou plusieurs features** (une par squad qui en livre une partie). Les UC liés s'affichent sur les features (puce colorée par statut, fiche détaillée, lien « Ouvrir dans SmartUC »).
+- **Synchronisation** toutes les 5 min (SmartUC n'émet pas de webhook) : cache local, détails lus pour les UC approuvés, en construction ou liés. Si SmartUC est indisponible, le cache daté reste affiché.
+- **« Use cases à planifier »** (vue Features, leads et administrateurs) : les UC approuvés sans feature. *Planifier* crée la feature préremplie (titre, résultat attendu, échéance, statut), la **rattache à l'UC** et propose un **paquet de tâches propre à l'IA** (accès et qualité des données, intégrations, prototype, validation humaine, jeu d'évaluation, KPIs, mitigations, documentation EU AI Act si haut risque, suivi, revue de go-live), dimensionné par l'effort S/M/L/XL.
+- **Squad suggérée, avec ses raisons** : porteur du UC présent dans la squad (rapprochement par e-mail, même Keycloak), équipes citées, entités partagées avec les UC qu'elle porte déjà, compétences, puis pénalités de capacité.
+- **Garde-fous de gouvernance** : feature « en réalisation » alors que l'UC n'est pas approuvé, rejeté ou retiré, tier EU AI Act non validé en livraison, UC supprimé, feature « en ligne » alors que l'UC n'est pas en production. Santé des features et notifications (changement de statut, tier validé, nouvelle relation confirmée, nouvel UC à planifier) en découlent.
+- **Aucune écriture vers SmartUC** : les passages de porte restent humains, dans SmartUC.
+
+Configuration : Réglages › Intégrations › SmartUC (URL MCP, clé, test de connexion avec rôle du compte et nombre d'UC), ou `SMARTUC_MCP_URL` / `SMARTUC_API_KEY`. Créez dans SmartUC un compte de service « reviewer » ou « admin » (un « requester » ne voit que ses propres UC) et une clé via *MCP & API*. `npm run smartuc:check` teste la liaison et montre ce qui serait proposé, sans rien modifier. La clé reste côté serveur et n'est jamais envoyée vers une autre URL que celle saisie ni suivie dans une redirection.
 
 ## Notifications et Inbox
 - **Cloche** 🔔 (en-tête) : vous êtes prévenu quand une tâche vous est assignée ou retirée, que sa priorité, son statut ou son échéance change (par quelqu'un d'autre), qu'elle devient bloquée ou débloquée, ou supprimée ; qu'une tâche à trier arrive dans l'Inbox de votre squad ; qu'une dépendance est déclarée sur votre feature ; qu'on vous place dans une squad ; qu'un nouveau compte attend d'être rangé (administrateurs). Jamais pour vos propres actions. Alertes du navigateur optionnelles (onglet en arrière-plan). Pas d'e-mail ni de Slack pour l'instant.

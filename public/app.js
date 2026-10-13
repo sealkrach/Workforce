@@ -1,6 +1,7 @@
 // WorkForce — interface (aucune dépendance, aucun build).
 import { createOrg } from '/org.js';
 import { createAdmin } from '/admin.js';
+import { createUc } from '/uc.js';
 import { enableTouchDnd, markDraggables } from '/touchdnd.js';
 const $ = s => document.querySelector(s);
 const STATUS = { todo: 'À faire', doing: 'En cours', review: 'En revue', done: 'Terminé' };
@@ -28,7 +29,7 @@ async function api(path, method = 'GET', body) {
   catch { throw new Error('Le serveur WorkForce ne répond pas. Vérifiez qu’il est démarré puis réessayez.'); }
   if (res.status === 401 && S.auth?.enabled) { showLogin(S.auth.providers); throw new Error('Votre session a expiré : reconnectez-vous.'); }
   if (!res.ok) throw new Error(data.error || res.statusText);
-  if (data.tasks) { S.data = { ...S.data, ...data }; render(); }
+  if (data._snapshot) { S.data = { ...S.data, ...data }; render(); }
   return data;
 }
 
@@ -85,8 +86,10 @@ function dropSpot(col, y) {
 }
 
 function openModal(node) { const m = $('#modal'); m.replaceChildren(node); m.hidden = false; m.onclick = closeModal; node.querySelector?.('input[type=text], input:not([type]), select')?.focus(); }
-const org = createOrg({ h, S, api, toast, by, member, team, project, avatar, openTask, openModal, closeModal, makeDraggable, DRAG, fmtDate, can, render: () => render() });
-const admin = createAdmin({ h, S, api, toast, member, team, avatar, openModal, closeModal, can, openMemberModal: org.openMemberModal, openLlmSettings: () => openLlmSettings(), render: () => render() });
+const ucApi = {};   // rempli juste après : org et admin s'en servent à l'exécution, pas à la création
+const org = createOrg({ h, S, api, toast, by, member, team, project, avatar, openTask, openModal, closeModal, makeDraggable, DRAG, fmtDate, can, uc: ucApi, render: () => render() });
+Object.assign(ucApi, createUc({ h, S, api, toast, can, ui: org.ui, openModal, closeModal, render: () => render() }));
+const admin = createAdmin({ h, S, api, toast, member, team, avatar, openModal, closeModal, can, uc: ucApi, openMemberModal: org.openMemberModal, openLlmSettings: () => openLlmSettings(), render: () => render() });
 
 /* ---------- Vues ---------- */
 function card(t) {
@@ -227,7 +230,7 @@ async function activityView() {
   const verb = { create: 'a créé', update: 'a modifié', link: 'a lié', unlink: 'a délié', delete: 'a supprimé', undo: 'a annulé', feature_create: 'a créé la feature', feature_update: 'a modifié la feature', feature_delete: 'a supprimé la feature',
     feature_dep: 'a ajouté une dépendance', feature_dep_remove: 'a retiré une dépendance', squad_create: 'a créé la squad', squad_update: 'a modifié la squad', squad_delete: 'a supprimé la squad', member_move: 'a déplacé',
     member_create: 'a ajouté', member_delete: 'a retiré', project_create: 'a créé le projet', project_update: 'a modifié le projet', project_delete: 'a supprimé le projet',
-    team_create: 'a créé la fonction', team_update: 'a modifié la fonction', team_delete: 'a supprimé la fonction', reset: 'a effacé toutes les données' };
+    uc_link: 'a lié un use case :', uc_unlink: 'a délié un use case :', team_create: 'a créé la fonction', team_update: 'a modifié la fonction', team_delete: 'a supprimé la fonction', reset: 'a effacé toutes les données' };
   const undo = async r => { try { const u = await api(`/undo-activity/${r.id}`, 'POST'); toast(u.undone ? 'Action annulée' : `Impossible : ${u.conflicts[0]?.reason || 'déjà annulée'}`, u.undone ? 2400 : 6000); } catch (e) { toast(e.message, 5000); } };
   const undoable = r => !r.undone && r.task_id && ['create', 'update', 'link', 'unlink', 'delete'].includes(r.action);
   wrap.append(rows.length ? h('div', { class: 'panel' }, rows.map(r => h('div', { class: 'dep', style: r.undone ? 'opacity:.45;text-decoration:line-through' : '' },
@@ -560,7 +563,7 @@ document.addEventListener('keydown', e => {
 });
 
 /** Les autres utilisateurs modifient aussi les données : on se resynchronise toutes les 15 s (sans casser une saisie ou un glisser-déposer en cours). */
-const dataSig = d => JSON.stringify([d.tasks, d.members, d.squads, d.features, d.projects, d.teams, d.links, d.feature_deps, d.notifications]);
+const dataSig = d => JSON.stringify([d.tasks, d.members, d.squads, d.features, d.projects, d.teams, d.links, d.feature_deps, d.notifications, d.ucs, d.uc_links, d.smartuc]);
 async function refresh() {
   if (document.hidden || DRAG.id || DRAG.member || !S.data) return;
   const a = document.activeElement;
@@ -608,6 +611,7 @@ function openNotification(n) {
   if (n.task_id && by(S.data.tasks, n.task_id)) openTask(n.task_id);
   else if (n.feature_id && S.data.features.find(f => f.id === n.feature_id)) { S.view = localStorage.view = 'features'; render(); }
   else if (n.kind === 'account') { S.view = localStorage.view = 'squads'; render(); }
+  else if (n.kind === 'uc') { S.view = localStorage.view = 'features'; render(); }
 }
 function renderNotifPanel() {
   const n = S.data.notifications || { unread: 0, items: [] };

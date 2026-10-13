@@ -1,7 +1,7 @@
 // Réglages & administration : personnes, projets, fonctions, données, accueil d'une base vide.
 // Module autonome : reçoit ses dépendances (état, helpers) de app.js.
 export function createAdmin(c) {
-  const { h, S, api, toast, member, team, avatar, openModal, closeModal, openMemberModal, openLlmSettings, can } = c;
+  const { h, S, api, toast, member, team, avatar, openModal, closeModal, openMemberModal, openLlmSettings, can, uc } = c;
   const squadOf = id => S.data.squads.find(s => s.id === id);
   const plural = (n, s, p = s + 's') => `${n} ${n > 1 ? p : s}`;
   const errBox = () => h('div', { class: 'result ko', hidden: true });
@@ -80,6 +80,7 @@ export function createAdmin(c) {
         h('div', { class: 'panel fns' }, teams.length ? teams : h('div', { class: 'empty' }, 'Aucune fonction (Dev, Infra, Sécurité…).'))),
       h('section', {}, h('div', { class: 'sechead' }, h('h2', {}, 'Assistant IA')),
         h('div', { class: 'panel setrow' }, h('span', {}, ai.enabled ? `LLM activé : ${ai.model}` : 'Mode local (analyseur simplifié, sans LLM)'), h('span', { class: 'grow' }), can.admin && h('button', { onclick: openLlmSettings }, 'Configurer le LLM'))),
+      uc.settingsSection(),
       can.admin && h('section', {}, h('div', { class: 'sechead' }, h('h2', {}, 'Données')),
         h('div', { class: 'panel' }, h('p', { class: 'muted', style: 'margin-top:0' }, 'Tout est stocké dans data/workforce.db sur le serveur. Copiez ce fichier pour sauvegarder. L’export JSON ne contient pas la clé du LLM.'),
           h('div', { class: 'actions', style: 'margin:0' }, h('a', { class: 'btn', href: '/api/export', download: '' }, '⬇ Exporter (JSON)'),
