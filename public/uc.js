@@ -10,7 +10,7 @@ export function createUc(c) {
   const ucOf = ref => S.data.ucs.find(u => u.ref === ref);
   const squadOf = id => S.data.squads.find(s => s.id === id);
   const enabled = () => !!S.data.smartuc?.enabled;
-  const deep = ref => S.data.smartuc?.publicUrl ? `${S.data.smartuc.publicUrl}/usecases/${ref}` : null;
+  const deep = ref => /^https?:\/\//i.test(S.data.smartuc?.publicUrl || '') ? `${S.data.smartuc.publicUrl}/usecases/${ref}` : null;
   const plural = (n, s, p = s + 's') => `${n} ${n > 1 ? p : s}`;
   const score = v => v == null ? '—' : Math.round(v);
   const ago = iso => { if (!iso) return 'jamais'; const s = (Date.now() - Date.parse(iso)) / 1000; return s < 60 ? 'à l’instant' : s < 3600 ? `il y a ${Math.floor(s / 60)} min` : s < 86400 ? `il y a ${Math.floor(s / 3600)} h` : new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }); };
@@ -25,8 +25,9 @@ export function createUc(c) {
 
   /** Bandeau d'état : seulement quand quelque chose ne va pas. */
   function banner() {
-    const s = S.data.smartuc; if (!s?.enabled || s.ok !== false) return null;
-    return h('div', { class: 'guards' }, h('div', { class: 'guard alert' }, h('span', {}, '⚠️'), h('span', {}, `SmartUC est injoignable ou refuse la connexion : ${s.error || 'erreur inconnue'}. Les use cases affichés datent de la dernière synchronisation réussie (${ago(s.last_sync_at)}).`)));
+    const s = S.data.smartuc; if (!s?.enabled || (s.ok !== false && !s.warning)) return null;
+    const msg = s.ok === false ? `SmartUC est injoignable ou refuse la connexion : ${s.error || 'erreur inconnue'}. Les use cases affichés datent de la dernière synchronisation réussie (${ago(s.last_sync_at)}).` : `SmartUC : ${s.warning}`;
+    return h('div', { class: 'guards' }, h('div', { class: 'guard alert' }, h('span', {}, '⚠️'), h('span', {}, msg)));
   }
 
   /* ---------- Fiche d'un UC (lecture seule) ---------- */
@@ -139,7 +140,7 @@ export function createUc(c) {
         ['Clé API', inp('key', { placeholder: S.smartucConfig?.hasKey ? `•••• ${S.smartucConfig.keyHint} (conservée si vide)` : 'uch_… (SmartUC › MCP & API › Create key)' })],
         ['URL de l’interface', inp('publicUrl', { placeholder: 'https://smartuc.entreprise.fr (liens « Ouvrir dans SmartUC »)' })],
         ['Fréquence (min)', h('input', { type: 'number', min: 1, max: 120, value: v.pollMinutes, onchange: e => v.pollMinutes = +e.target.value })]]),
-      h('div', { class: 'muted', style: 'font-size:12px' }, 'Utilisez un compte de service « reviewer » ou « admin » dans SmartUC : un compte « requester » ne voit que ses propres UC.'),
+      h('div', { class: 'muted', style: 'font-size:12px' }, 'Moindre privilège : créez dans SmartUC un compte de service dédié au rôle « requester ». Il lit tout le registre mais ne peut ni franchir de porte ni modifier les UC des autres — et WorkForce n’écrit jamais. Une clé porte tous les droits de son compte.'),
       result, err, h('div', { class: 'actions' }, testBtn, h('span', { class: 'spacer' }), h('button', { onclick: closeModal }, 'Fermer'), save)));
   }
 

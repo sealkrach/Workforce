@@ -5,10 +5,10 @@ import { readFileSync } from 'node:fs';
 const fx = n => JSON.parse(readFileSync(new URL(`../fixtures/smartuc/${n}.json`, import.meta.url), 'utf8'));
 export const DETAILED = ['UC-0002', 'UC-0004', 'UC-0018', 'UC-0025'];
 
-export async function startFakeSmartuc({ key = 'uch_testkey', sse = false, role = 'reviewer' } = {}) {
+export async function startFakeSmartuc({ key = 'uch_testkey', sse = false, role = 'requester' } = {}) {
   const s = {
     key, sse, role, rows: fx('list'), details: Object.fromEntries(DETAILED.map(r => [r, fx(r)])), rels: Object.fromEntries(DETAILED.map(r => [r, fx(r + '.relations')])),
-    calls: [], seen: [], sessions: new Set(), expireNext: false, down: false, rest: 0,
+    calls: [], seen: [], dropOn: null, sessions: new Set(), expireNext: false, down: false, rest: 0,
   };
   s.calls_of = name => s.calls.filter(c => c === name).length;
   s.set = (ref, patch) => {                       // change un UC comme le ferait SmartUC (statut, tier…) et avance updated_at
@@ -39,6 +39,7 @@ export async function startFakeSmartuc({ key = 'uch_testkey', sse = false, role 
     if (msg.method === 'tools/list') return reply({ tools: ['list_use_cases', 'get_use_case', 'list_relations', 'search_similar'].map(name => ({ name })) });
     if (msg.method === 'tools/call') {
       const { name, arguments: a = {} } = msg.params; s.calls.push(name);
+      if (s.dropOn === name) { res.destroy(); return; }          // coupure réseau pendant cet outil
       const ok = v => reply({ content: [{ type: 'text', text: JSON.stringify(v) }] });
       const err = t => reply({ isError: true, content: [{ type: 'text', text: t }] });
       if (name === 'list_use_cases') return ok(s.rows.slice(0, a.limit ?? 50));

@@ -190,8 +190,9 @@ test('réglages : la clé n’est jamais envoyée vers une autre URL ; test de c
     assert.equal(t.ok, false); assert.match(t.error, /Clé d’API|Aucune clé/);
     assert.equal(other.seen.filter(Boolean).length, 0, 'aucun en-tête Authorization n’a atteint l’autre serveur');
     const ok = await smartuc.test({ url: fake.url, enabled: true });
-    assert.deepEqual([ok.ok, ok.uc_count, ok.role, ok.tools], [true, fake.rows.length, 'reviewer', 4]); assert.deepEqual(ok.warnings, []);
-    fake.role = 'requester'; assert.match((await smartuc.test({ url: fake.url, enabled: true })).warnings[0], /requester.*ne voit que ses propres UC/); fake.role = 'reviewer';
+    assert.deepEqual([ok.ok, ok.uc_count, ok.role, ok.tools], [true, fake.rows.length, 'requester', 4]); assert.deepEqual(ok.warnings, [], 'compte « requester » : le moindre privilège, aucun avertissement');
+    fake.role = 'reviewer'; assert.match((await smartuc.test({ url: fake.url, enabled: true })).warnings[0], /reviewer.*franchir des portes.*préférez.*requester/);
+    fake.role = 'admin'; assert.match((await smartuc.test({ url: fake.url, enabled: true })).warnings[0], /admin.*rejeter des UC.*utilisateurs/); fake.role = 'requester';
     assert.equal((await smartuc.test({ url: 'ftp://x' }).catch(e => ({ ok: false, error: e.message }))).ok, false);
     const cfg = smartuc.save({ url: other.url, enabled: true, pollMinutes: 0 });          // changement d'URL sans clé : la clé est oubliée
     assert.equal(cfg.hasKey, false); assert.equal(cfg.pollMinutes, 1, 'fréquence bornée');
@@ -219,4 +220,61 @@ test('UC supprimés dans SmartUC : marqués, jamais effacés ; une liste vide ne
   fake.rows = []; await smartuc.sync();
   assert.equal(smartuc.snapshot().ucs.filter(u => u.deleted).length, 1, 'liste vide = suspect (droits ?) : rien n’est marqué');
   fake.rows = saved; await smartuc.sync(); assert.equal(smartuc.snapshot().ucs.find(u => u.ref === 'UC-0001').deleted, false, 'le UC réapparaît');
+});
+
+test('le portefeuille complet ne part que vers les leads et administrateurs ; les autres reçoivent les UC liés', async () => {
+  const sess = {}; for (const who of ['Camille', 'Yanis', 'Inès']) { const t = 'tk-' + who; sess[who] = t; db.prepare('INSERT OR REPLACE INTO sessions(token_hash, member_id, created_at, expires_at) VALUES (?,?,?,?)').run(createHash('sha256').update(t).digest('hex'), mid(who), new Date().toISOString(), new Date(Date.now() + 3.6e6).toISOString()); }
+  db.prepare('UPDATE members SET is_admin = 1 WHERE id = ?').run(mid('Inès'));
+  const s2 = createServer(); await new Promise(r => s2.listen(0, '127.0.0.1', r)); const b2 = `http://127.0.0.1:${s2.address().port}`;
+  s2.on('request', buildApp(db, { smartuc, auth: authConfig({ KEYCLOAK_ISSUER: 'http://x.invalid/realms/r', KEYCLOAK_CLIENT_ID: 'x', PUBLIC_URL: b2 }) }));
+  const boot = async who => (await fetch(b2 + '/api/bootstrap', { headers: { cookie: `wf_session=${sess[who]}` } })).json();
+  try {
+    const all = fake.rows.length, linked = new Set(db.prepare('SELECT uc_ref FROM feature_ucs').all().map(r => r.uc_ref));
+    assert.ok(linked.size >= 1 && linked.size < all);
+    const yanis = await boot('Yanis'), camille = await boot('Camille'), ines = await boot('Inès');
+    assert.equal(camille.ucs.length, all, 'un lead voit tout le portefeuille (il planifie)'); assert.equal(ines.ucs.length, all);
+    assert.deepEqual(yanis.ucs.map(u => u.ref).sort(), [...linked].sort(), 'un membre ne reçoit que les UC liés à une feature');
+    const draft = fake.rows.find(r => r.status === 'draft');
+    assert.ok(!JSON.stringify(yanis).includes(draft.title) && !JSON.stringify(yanis).includes(draft.ref + '"'), 'aucune idée d’un autre métier dans son navigateur');
+    assert.ok(JSON.stringify(camille).includes(draft.title));
+    assert.equal(yanis.smartuc.uc_count, yanis.ucs.length, 'le total du portefeuille n’est pas divulgué non plus');
+    assert.ok(yanis.uc_links.length >= 1, 'les liens restent visibles (puces sur les features)');
+  } finally { s2.close(); }
+});
+
+test('disparition massive (droits modifiés ?) ou plafond de 500 : rien n’est marqué supprimé, un avertissement est affiché', async () => {
+  const saved = fake.rows;
+  fake.rows = saved.slice(0, 8);                                   // 26 → 8 : 18 UC « disparaissent » d'un coup
+  await smartuc.sync();
+  assert.equal(smartuc.snapshot().ucs.filter(u => u.deleted).length, 0, 'pas de suppression en masse');
+  assert.match(smartuc.snapshot().smartuc.warning, /18 UC sur 26 ne sont plus visibles : droits du compte modifiés/);
+  fake.rows = saved; await smartuc.sync(); assert.equal(smartuc.snapshot().smartuc.warning, null, 'l’avertissement disparaît dès que la situation se normalise');
+  fake.rows = Array.from({ length: 500 }, (_, i) => ({ ...saved[i % saved.length], ref: `UC-${String(i + 1).padStart(4, '0')}`, id: 'id' + i }));
+  await smartuc.sync(); assert.match(smartuc.snapshot().smartuc.warning, /limite de 500 UC/);
+  assert.equal(smartuc.snapshot().ucs.filter(u => u.deleted).length, 0);
+  fake.rows = saved; await smartuc.sync();
+  db.prepare("DELETE FROM uc_cache WHERE ref NOT IN (" + saved.map(() => '?').join(',') + ')').run(...saved.map(r => r.ref));
+});
+
+test('« premier import » : tant qu’une synchronisation complète n’a pas réussi, aucun UC n’est annoncé comme nouveau', async () => {
+  const fresh = openDb(':memory:'); seed(fresh);
+  fresh.prepare('UPDATE members SET is_admin = 1 WHERE id = ?').run(fresh.prepare("SELECT id FROM members WHERE name LIKE 'Inès%'").get().id);
+  const uc2 = createSmartuc(fresh, { env: { SMARTUC_MCP_URL: fake.url, SMARTUC_API_KEY: fake.key } });
+  fake.dropOn = 'get_use_case'; const broken = await uc2.sync(); fake.dropOn = null;           // coupure en plein import, après quelques UC
+  assert.equal(broken.ok, false);
+  assert.ok(fresh.prepare('SELECT COUNT(*) c FROM uc_cache').get().c > 0, 'l’import interrompu a laissé un cache partiel');
+  assert.equal(fresh.prepare('SELECT COUNT(*) c FROM notifications').get().c, 0);
+  assert.equal((await uc2.sync()).ok, true);
+  assert.equal(fresh.prepare("SELECT COUNT(*) c FROM notifications WHERE kind = 'uc'").get().c, 0, 'pas de déluge « nouvel UC approuvé » après un premier import interrompu');
+  const draft = fake.rows.find(r => r.status === 'draft').ref;
+  fake.set(draft, { status: 'approved' }); await uc2.sync();
+  assert.ok(fresh.prepare("SELECT * FROM notifications WHERE kind = 'uc'").all().some(n => n.text.includes(`prêt à planifier : ${draft}`)), 'les changements suivants sont bien notifiés');
+  fake.set(draft, { status: 'draft' });
+});
+
+test('URL de l’interface SmartUC : http(s) uniquement (elle alimente des liens cliquables)', () => {
+  assert.throws(() => smartuc.save({ url: fake.url, enabled: true, publicUrl: 'javascript:alert(1)' }), /http:\/\/ ou https:\/\//);
+  assert.throws(() => smartuc.save({ url: fake.url, enabled: true, publicUrl: 'data:text/html,x' }), /http:\/\/ ou https:\/\//);
+  assert.equal(smartuc.save({ url: fake.url, enabled: true, publicUrl: 'https://smartuc.example.org/' }).publicUrl, 'https://smartuc.example.org');
+  smartuc.save({ url: fake.url, enabled: true, publicUrl: fake.origin });
 });

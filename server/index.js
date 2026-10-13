@@ -91,7 +91,7 @@ export function buildApp(db, { loopbackOnly = false, allowedHosts = [], trustPro
     empty: admin.isEmpty(db),
     auth: { enabled: authn.enabled, providers: authn.providers, user: actor.id ? { id: actor.id, name: actor.name, is_admin: actor.is_admin } : null },
     notifications: notificationsFor(db, actor.id),
-    ...smartuc.snapshot(),
+    ...smartuc.snapshot({ all: isAnyLead(actor) }),
     ...org.orgSnapshot(db),
   });
 

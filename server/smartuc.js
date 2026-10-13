@@ -12,6 +12,7 @@ import { arr, parseUc, featureDraft, playbook, suggestSquads } from './uc-plan.j
 export const REF = /^UC-\d{1,6}$/;
 export const normRef = s => String(s ?? '').trim().toUpperCase();
 const cut = (v, n) => (v == null ? v : String(v).slice(0, n));
+const LIST_CAP = 500;   // plafond de list_use_cases côté SmartUC
 const row = (db, sql, ...p) => db.prepare(sql).get(...p);
 const trimSlash = s => String(s || '').replace(/\/+$/, '');
 
@@ -44,7 +45,9 @@ export function createSmartuc(db, { clientFactory = cfg => new McpClient({ url: 
     if (!/^https?:\/\//.test(url)) throw new HttpError('L’URL MCP doit commencer par http:// ou https:// (ex. https://smartuc.entreprise.fr/mcp)');
     const same = url === cur.url;
     const poll = Number(d.pollMinutes ?? cur.pollMinutes);
-    return { enabled: !!d.enabled, url, publicUrl: trimSlash(String(d.publicUrl ?? cur.publicUrl).trim()), pollMinutes: Math.min(120, Math.max(1, Number.isFinite(poll) ? poll : 5)),
+    const publicUrl = trimSlash(String(d.publicUrl ?? cur.publicUrl).trim());
+    if (publicUrl && !/^https?:\/\//i.test(publicUrl)) throw new HttpError('L’URL de l’interface SmartUC doit commencer par http:// ou https://');   // elle alimente des liens cliquables
+    return { enabled: !!d.enabled, url, publicUrl, pollMinutes: Math.min(120, Math.max(1, Number.isFinite(poll) ? poll : 5)),
       key: d.clearKey ? '' : d.key ? String(d.key).trim() : same ? cur.key : '' };
   }
   const save = d => { const c = candidate(d); saveSetting(db, 'smartuc', c); restart(); return publicConfig(); };
@@ -66,7 +69,10 @@ export function createSmartuc(db, { clientFactory = cfg => new McpClient({ url: 
         const r = await fetchImpl(`${new URL(c.url).origin}/api/auth/me`, { headers: { Authorization: `Bearer ${c.key}` }, redirect: 'manual', signal: AbortSignal.timeout(5000) });
         if (r.ok) { const me = await r.json(); role = me.role; user = me.full_name || me.email; }
       } catch { /* rôle inconnu : on n'en fait pas une erreur */ }
-      if (role === 'requester') warnings.push('Ce compte a le rôle « requester » : il ne voit que ses propres UC. Utilisez un compte « reviewer » ou « admin » pour synchroniser tout le portefeuille.');
+      // WorkForce n'écrit jamais dans SmartUC, mais une clé porte TOUS les droits de son compte : on recommande le moindre privilège.
+      // Dans SmartUC, un « requester » lit tout le registre et ne peut ni franchir de porte ni modifier les UC des autres.
+      if (role === 'reviewer') warnings.push('Ce compte est « reviewer » : sa clé pourrait faire franchir des portes de gouvernance dans SmartUC. WorkForce n’écrit jamais, mais préférez un compte de service dédié « requester » (il lit tout le registre et ne peut rien valider).');
+      if (role === 'admin') warnings.push('Ce compte est « admin » : sa clé pourrait aussi rejeter des UC et gérer les utilisateurs de SmartUC. Préférez un compte de service dédié « requester » (lecture du registre suffisante).');
       if (rows.length === 0) warnings.push('Le registre est vide ou ce compte ne voit aucun UC.');
       return { ok: true, ms, server: server?.name, tools: tools.length, uc_count: rows.length, role, user, warnings };
     } catch (e) { return { ok: false, ms: Math.round(performance.now() - t0), error: e.message }; }
@@ -136,11 +142,12 @@ export function createSmartuc(db, { clientFactory = cfg => new McpClient({ url: 
     let partial = 0;
     try {
       await client.connect();
-      const rows = await client.callTool('list_use_cases', { limit: 500 });
+      const rows = await client.callTool('list_use_cases', { limit: LIST_CAP });
       if (!Array.isArray(rows)) throw new Error('Réponse inattendue de list_use_cases');
       const latency = Math.round(performance.now() - t0);
       const cached = new Map(db.prepare('SELECT * FROM uc_cache').all().map(r => [r.ref, r]));
-      const firstSync = cached.size === 0;
+      // « Premier import » = tant qu'une synchronisation complète n'a pas réussi (un import interrompu ne doit pas annoncer ensuite chaque UC comme nouveau)
+      const firstSync = !state().first_done;
       const linked = linkedRefs();
       for (const r of rows) {
         if (!REF.test(normRef(r.ref))) continue;
@@ -168,11 +175,16 @@ export function createSmartuc(db, { clientFactory = cfg => new McpClient({ url: 
         if (d && old?.relations) relationEvents(ref, JSON.parse(old.relations), d.relations, firstSync);
       }
       // UC disparus du registre : marqués « supprimés » (jamais effacés, un lien peut encore y pointer). Liste vide = suspect (droits ?) : on ne touche à rien.
+      let warning = null;
       if (rows.length) {
         const seen = new Set(rows.map(r => normRef(r.ref)));
-        for (const ref of cached.keys()) if (!seen.has(ref)) db.prepare('UPDATE uc_cache SET deleted = 1 WHERE ref = ?').run(ref);
+        const gone = [...cached.entries()].filter(([ref, r]) => !r.deleted && !seen.has(ref)).map(([ref]) => ref);
+        const alive = [...cached.values()].filter(r => !r.deleted).length;
+        if (rows.length >= LIST_CAP) warning = `Le registre atteint la limite de ${LIST_CAP} UC lus par WorkForce : les suivants sont ignorés. Rien n’est marqué supprimé.`;
+        else if (gone.length >= 5 && gone.length / Math.max(alive, 1) > 0.3) warning = `${gone.length} UC sur ${alive} ne sont plus visibles : droits du compte modifiés ? Rien n’est marqué supprimé tant que cela n’est pas clarifié.`;   // disparition massive = suspecte
+        else for (const ref of gone) db.prepare('UPDATE uc_cache SET deleted = 1 WHERE ref = ?').run(ref);
       }
-      setState({ ok: true, error: null, last_sync_at: now(), latency_ms: latency, uc_count: rows.length, partial });
+      setState({ ok: true, error: null, warning, first_done: true, last_sync_at: now(), latency_ms: latency, uc_count: rows.length, partial });
       return { ok: true, uc_count: rows.length, partial, ms: latency };
     } catch (e) {
       setState({ ok: false, error: e.message, last_attempt_at: now() });
@@ -234,14 +246,15 @@ export function createSmartuc(db, { clientFactory = cfg => new McpClient({ url: 
   }
 
   /** Part de l'instantané envoyé à l'interface. */
-  function snapshot() {
-    const c = cfg(), s = state();
-    const ucs = db.prepare('SELECT * FROM uc_cache ORDER BY ref').all().map(r => ({
+  /** `all` = leads et administrateurs : portefeuille complet. Les autres ne reçoivent que les UC liés à une feature (ce que montrent les puces et la fiche UC) : brouillons et idées des autres métiers restent hors de leur navigateur. */
+  function snapshot({ all = true } = {}) {
+    const c = cfg(), s = state(), linked = linkedRefs();
+    const ucs = db.prepare('SELECT * FROM uc_cache ORDER BY ref').all().filter(r => all || linked.has(r.ref)).map(r => ({
       ref: r.ref, title: r.title, status: r.status, business_unit: r.business_unit, risk_tier: r.risk_tier, ai_capability: r.ai_capability,
       value_score: r.value_score, feasibility_score: r.feasibility_score, priority_score: r.priority_score, completeness: r.completeness,
       updated_at: r.uc_updated_at, ignored: !!r.ignored, deleted: !!r.deleted, data: r.data ? JSON.parse(r.data) : null, relations: r.relations ? JSON.parse(r.relations) : null }));
     return {
-      smartuc: { enabled: c.enabled, configured: Boolean(c.url && c.key), publicUrl: c.publicUrl, pollMinutes: c.pollMinutes, ok: s.ok, error: s.error, last_sync_at: s.last_sync_at, latency_ms: s.latency_ms, uc_count: s.uc_count ?? ucs.length },
+      smartuc: { enabled: c.enabled, configured: Boolean(c.url && c.key), publicUrl: c.publicUrl, pollMinutes: c.pollMinutes, ok: s.ok, error: s.error, warning: s.warning ?? null, last_sync_at: s.last_sync_at, latency_ms: s.latency_ms, uc_count: all ? (s.uc_count ?? ucs.length) : ucs.length },
       ucs, uc_links: db.prepare('SELECT feature_id, uc_ref FROM feature_ucs').all(),
     };
   }
