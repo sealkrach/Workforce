@@ -1,0 +1,48 @@
+# WorkForce + Caddy (HTTPS automatique Let's Encrypt).
+#   cp .env.example .env     # puis renseigner au minimum DOMAIN (voir deploy/README.md)
+#   docker compose up -d --build
+services:
+  workforce:
+    build: .
+    image: workforce:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false          # les variables peuvent aussi venir de l'environnement du shell
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DB_PATH: /data/workforce.db
+      # Caddy conserve l'en-tête Host : on déclare le domaine public (liens de connexion, contrôle d'origine)
+      ALLOWED_HOSTS: ${DOMAIN:?Renseignez DOMAIN dans .env (ex. workforce.entreprise.fr)}
+      PUBLIC_URL: https://${DOMAIN}
+    volumes:
+      - workforce-data:/data
+    # Aucun port publié : seul Caddy est exposé.
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      workforce:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+    volumes:
+      # Caddyfile (sans mot de passe, avec Keycloak/Google) ou Caddyfile.basicauth (mot de passe devant l'application)
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  workforce-data:
+  caddy-data:
+  caddy-config:

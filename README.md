@@ -79,6 +79,8 @@ Configuration : Réglages › Intégrations › SmartUC (URL MCP, clé, test de 
 Le glisser-déposer fonctionne au doigt : **appui long (~0,3 s)** sur une carte, une tâche ou une personne, puis déplacement ; le défilement se fait automatiquement près des bords. Le tableau se parcourt en colonnes à faire défiler horizontalement. Sur écran tactile le glisser natif du navigateur est désactivé (il entrerait en conflit) : la souris continue d'utiliser le glisser natif.
 
 ## Déploiement pour l'équipe
+**Kit prêt à l'emploi** : `docker compose up -d --build` (application + HTTPS automatique Caddy, base en volume, sauvegarde `scripts/backup.mjs`) ou unité systemd — voir **[deploy/README.md](deploy/README.md)**. Détails et réglages ci-dessous.
+
 - **Réseau** : par défaut le serveur n'écoute que sur `127.0.0.1`. Pour l'ouvrir à l'équipe : `HOST=0.0.0.0 npm start`.
 - ⚠️ **Sans fournisseur de connexion configuré** (voir ci-dessous), le sélecteur « Connecté en tant que » est une commodité, pas une sécurité : n'importe qui peut en changer, et modifier la configuration du LLM. À n'utiliser que sur un réseau de confiance. **Pour une vraie équipe, activez Keycloak et/ou Google.** La clé du LLM reste côté serveur, n'est jamais renvoyée au navigateur ni envoyée vers une autre URL que celle pour laquelle elle a été saisie.
 - **Protections intégrées** : corps limités à 1 Mo, JSON uniquement, refus des requêtes provenant d'un autre site (Origin), en-têtes CSP / anti-framing, validation de tous les champs, écritures transactionnelles.
