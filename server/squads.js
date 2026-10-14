@@ -42,6 +42,23 @@ export function orgSnapshot(db) {
       active_features: features.filter(f => f.squad_id === s.id && f.status !== 'live').length }];
   }));
 
+  // Gouvernance : une feature qui construit un use case SmartUC doit respecter les portes de ce use case (information lue dans le cache, jamais écrite vers SmartUC).
+  const ucRows = db.prepare('SELECT fu.feature_id, c.ref, c.title, c.status, c.risk_tier, c.deleted, c.ignored FROM feature_ucs fu JOIN uc_cache c ON c.ref = fu.uc_ref').all();
+  const PRE_APPROVAL = ['draft', 'submitted', 'qualified'];
+  const governance = f => {
+    const out = [];
+    for (const u of ucRows.filter(x => x.feature_id === f.id)) {
+      if (f.status === 'live') { if (!u.deleted && !['in_production', 'retired'].includes(u.status)) out.push({ info: true, text: `la feature est en ligne mais l’UC ${u.ref} est « ${u.status} » dans SmartUC : déclarez la mise en production (porte go-live)` }); continue; }
+      if (f.status === 'discovery') continue;                      // le cadrage peut précéder l'approbation
+      if (u.deleted) out.push({ text: `l’UC ${u.ref} n’existe plus dans SmartUC` });
+      else if (['rejected', 'retired'].includes(u.status)) out.push({ red: true, text: `l’UC ${u.ref} est « ${u.status} » dans SmartUC : arrêter ou requalifier cette feature` });
+      else if (PRE_APPROVAL.includes(u.status)) out.push({ text: `l’UC ${u.ref} n’est pas encore approuvé (« ${u.status} ») : la porte d’investissement SmartUC n’est pas franchie` });
+      else if (f.status === 'shipping' && !u.risk_tier) out.push({ text: `le tier EU AI Act de l’UC ${u.ref} n’est pas validé dans SmartUC` });
+    }
+    return out;
+  };
+  const governanceByFeature = Object.fromEntries(features.map(f => [f.id, governance(f)]));
+
   const featureStats = features.map(f => {
     const mine = tasks.filter(t => t.feature_id === f.id), open = mine.filter(t => t.status !== 'done');
     const h = t => t.estimate_h ?? 4, total = mine.reduce((a, t) => a + h(t), 0), done = mine.filter(t => t.status === 'done').reduce((a, t) => a + h(t), 0);
@@ -62,8 +79,9 @@ export function orgSnapshot(db) {
       for (const p of waitingCross) orange.push(`attend « ${p.name} » (${sById[p.squad_id]?.name})`);
       if (squadStats[f.squad_id]?.pct > 100) orange.push('squad surchargée');
       if (!mine.length && f.status !== 'discovery') orange.push('aucune tâche');
+      for (const g of governanceByFeature[f.id]) (g.red ? red : orange).push(g.text);
     }
-    return { ...f, task_count: mine.length, open: open.length, done_count: mine.length - open.length, progress: total ? Math.round(done / total * 100) : 0,
+    return { ...f, uc_refs: ucRows.filter(x => x.feature_id === f.id).map(x => x.ref), task_count: mine.length, open: open.length, done_count: mine.length - open.length, progress: total ? Math.round(done / total * 100) : 0,
       blocked: blockedTasks.length, overdue: overdue.length, health: red.length ? 'red' : orange.length ? 'orange' : 'green', reasons: [...red, ...orange] };
   });
 
@@ -79,6 +97,9 @@ export function orgSnapshot(db) {
   const coupling = Object.values(pairs).sort((x, y) => y.count - x.count);
 
   const guardrails = [];
+  for (const f of features) for (const g of governanceByFeature[f.id]) guardrails.push({ level: g.info ? 'info' : 'warn', kind: 'governance', squad_id: f.squad_id, feature_id: f.id, message: `Gouvernance — « ${f.name} » : ${g.text}.` });
+  const unplanned = db.prepare("SELECT COUNT(*) c FROM uc_cache WHERE status IN ('approved','in_build') AND deleted = 0 AND ignored = 0 AND ref NOT IN (SELECT uc_ref FROM feature_ucs)").get().c;
+  if (unplanned) guardrails.push({ level: 'info', kind: 'uc_unplanned', squad_id: null, message: `${unplanned} use case${unplanned > 1 ? 's' : ''} SmartUC approuvé${unplanned > 1 ? 's' : ''} ${unplanned > 1 ? 'n’ont' : 'n’a'} pas encore de feature : à planifier avec une squad.` });
   for (const s of squads) {
     const st = squadStats[s.id];
     if (st.size < SQUAD_MIN) guardrails.push({ level: 'warn', kind: 'size', squad_id: s.id, message: `« ${s.name} » compte ${st.size} personne${st.size > 1 ? 's' : ''} : il en faut au moins ${SQUAD_MIN} pour livrer en autonomie.` });

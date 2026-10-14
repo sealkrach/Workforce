@@ -55,6 +55,14 @@ export function openDb(path = process.env.DB_PATH ? resolve(process.env.DB_PATH)
       id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE, kind TEXT NOT NULL,
       task_id INTEGER, feature_id INTEGER, actor TEXT, text TEXT NOT NULL, created_at TEXT, read_at TEXT);
     CREATE INDEX IF NOT EXISTS notifications_member ON notifications(member_id, read_at);
+    CREATE TABLE IF NOT EXISTS uc_cache (
+      ref TEXT PRIMARY KEY, uc_id TEXT, title TEXT, status TEXT, business_unit TEXT, risk_tier TEXT, ai_capability TEXT,
+      value_score REAL, feasibility_score REAL, priority_score REAL, completeness REAL, suggested_relations INTEGER DEFAULT 0,
+      uc_updated_at TEXT, data TEXT, relations TEXT, ignored INTEGER DEFAULT 0, deleted INTEGER DEFAULT 0, synced_at TEXT);
+    CREATE TABLE IF NOT EXISTS feature_ucs (
+      id INTEGER PRIMARY KEY, feature_id INTEGER NOT NULL REFERENCES features(id) ON DELETE CASCADE,
+      uc_ref TEXT NOT NULL, created_at TEXT, UNIQUE(feature_id, uc_ref));
+    CREATE INDEX IF NOT EXISTS feature_ucs_ref ON feature_ucs(uc_ref);
     CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(title, description, labels,
       tokenize = 'unicode61 remove_diacritics 2');
   `);

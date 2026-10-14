@@ -1,0 +1,100 @@
+{
+ "id": "bfc8fa07009b451191a7d2f7b5d902f1",
+ "ref": "UC-0002",
+ "title": "Automated triage of incoming supplier invoices",
+ "summary": "Classify and route incoming supplier invoices to the right accounts-payable queue and pre-fill SAP entries from the extracted invoice data.",
+ "status": "approved",
+ "business_unit": "Finance - Procure to Pay",
+ "completeness": 0.836,
+ "value_score": 61.0,
+ "feasibility_score": 77.1,
+ "priority_score": 67.4,
+ "risk_tier": "minimal_risk",
+ "tags": [],
+ "source": "manual",
+ "owner": {
+  "id": "66652c1d556647109c1d6f66bd2a572e",
+  "email": "anita.sharma@example.com",
+  "full_name": "Anita Sharma",
+  "role": "requester",
+  "is_active": true
+ },
+ "ai_capability": "extraction",
+ "suggested_relations": 1,
+ "updated_at": "2026-10-13T03:48:24.667055",
+ "created_at": "2026-10-13T03:48:24.466524",
+ "template_id": "1aab595015a6459b90463d0c44992d89",
+ "fields": {
+  "title": "Automated triage of incoming supplier invoices",
+  "summary": "Classify and route incoming supplier invoices to the right accounts-payable queue and pre-fill SAP entries from the extracted invoice data.",
+  "business_unit": "Finance - Procure to Pay",
+  "problem_statement": "Accounts payable receives 25,000 invoices a month by email and PDF; agents spend 12 minutes per invoice on classification, coding and matching.",
+  "target_users": [
+   "Accounts payable clerks (45)"
+  ],
+  "pain_points": [
+   "Slow invoice cycle time",
+   "Late payment penalties",
+   "Duplicate invoices paid"
+  ],
+  "ai_capability": "extraction",
+  "human_in_the_loop": "review_before_action",
+  "interaction_mode": "embedded_in_app",
+  "solution_description": "Extract header and line items from invoice PDFs, classify cost center and GL account, detect duplicates and pre-fill SAP; clerk validates before posting.",
+  "data_sources": [
+   "Supplier invoices (PDF/email)",
+   "SAP vendor master",
+   "Purchase orders"
+  ],
+  "data_sensitivity": "confidential",
+  "data_volume": "25k invoices / month",
+  "source_systems": [
+   "Shared mailbox (Exchange)",
+   "SharePoint"
+  ],
+  "target_systems": [
+   "SAP S/4HANA"
+  ],
+  "value_drivers": [
+   "cost_reduction",
+   "speed_time_to_market"
+  ],
+  "kpis": [
+   "Handling time 12 min -> 4 min",
+   "Invoice cycle time -50%",
+   "Duplicate payments -90%"
+  ],
+  "estimated_annual_value": 900000,
+  "affected_population": 45,
+  "urgency": "high",
+  "data_readiness": 4,
+  "technical_complexity": 2,
+  "change_impact": 2,
+  "eu_ai_act_tier": "minimal_risk",
+  "dependencies_notes": "Should reuse the document extraction platform built by Retail Operations instead of a new OCR stack.",
+  "build_approach": "reuse_existing_platform",
+  "estimated_effort": "M",
+  "teams_involved": [
+   "Finance IT",
+   "Data & AI platform"
+  ],
+  "models_considered": [
+   "Azure Document Intelligence"
+  ]
+ },
+ "missing_required": [],
+ "ai_suggestions": {},
+ "last_analyzed_at": "2026-10-13T03:48:24.666771",
+ "allowed_transitions": [
+  {
+   "to": "in_build",
+   "gate": null,
+   "min_role": "reviewer"
+  },
+  {
+   "to": "rejected",
+   "gate": null,
+   "min_role": "admin"
+  }
+ ]
+}
