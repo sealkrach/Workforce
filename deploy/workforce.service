@@ -1,0 +1,25 @@
+# Alternative sans Docker : Node 24+ installé sur le serveur, application derrière Caddy ou nginx.
+#   sudo useradd --system --home /opt/workforce --shell /usr/sbin/nologin workforce
+#   sudo git clone https://github.com/sealkrach/Workforce.git /opt/workforce && sudo chown -R workforce: /opt/workforce
+#   sudo cp /opt/workforce/.env.example /opt/workforce/.env   # puis le compléter (HOST=127.0.0.1, ALLOWED_HOSTS, PUBLIC_URL…)
+#   sudo cp deploy/workforce.service /etc/systemd/system/ && sudo systemctl enable --now workforce
+[Unit]
+Description=WorkForce
+After=network.target
+
+[Service]
+User=workforce
+WorkingDirectory=/opt/workforce
+ExecStart=/usr/bin/node server/start.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+# Durcissement
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/workforce/data
+
+[Install]
+WantedBy=multi-user.target

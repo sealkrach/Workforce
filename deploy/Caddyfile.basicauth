@@ -1,0 +1,14 @@
+# Protection de démarrage : mot de passe devant l'application (à remplacer par Keycloak avant d'inviter l'équipe).
+# Générer le hachage :  docker run --rm caddy:2 caddy hash-password --plaintext 'MotDePasseSolide'
+# puis, dans .env :  CADDYFILE=./deploy/Caddyfile.basicauth  BASIC_AUTH_USER=equipe  BASIC_AUTH_HASH='$2a$14$...'
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	basicauth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+	reverse_proxy workforce:3000
+}

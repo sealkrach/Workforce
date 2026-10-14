@@ -1,0 +1,9 @@
+# À utiliser avec l'authentification de l'application (Keycloak / Google) : Caddy ne fait que le HTTPS.
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy workforce:3000
+}
